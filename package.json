@@ -1,0 +1,20 @@
+{
+  "name": "storepanel",
+  "version": "1.0.0",
+  "description": "User Panel — auth, subscriptions, categories, products, cart, checkout & orders (Node.js + Express + MySQL)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node seed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
+    "mysql2": "^3.11.0"
+  }
+}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VendorHub — Sign in</title>
+  <link rel="stylesheet" href="/css/styles.css?v=20260921-ui3" />
+</head>
+<body class="auth-body">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="logo-dot"></span>
+        <h1>VendorHub</h1>
+        <p class="muted">Simple billing and product management for growing businesses.</p>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Email or mobile
+          <input type="text" name="email" id="login-email" placeholder="you@example.com · 98765 43210" required />
+        </label>
+        <label>Password
+          <input type="password" name="password" placeholder="••••••••" required />
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">Continue</button>
+      </form>
+
+      <p class="auth-note muted">Accounts are created by your vendor. Sign in with the credentials you received.</p>
+
+      <div id="auth-error" class="alert alert-error hidden"></div>
+      <div class="auth-demo muted">
+        Demo accounts (after running <code>node seed.js</code>):<br />
+        sundar.traders@gmail.com / demo1234 &nbsp;·&nbsp; meera.krishnan@gmail.com / demo1234
+      </div>    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js?v=20260921-ui3"></script>
+  <script src="/js/auth.js?v=20260921-ui3"></script>
+</body>
+</html>

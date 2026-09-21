@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VendorHub — Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css?v=20260921-ui3" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-brand"><span class="logo-dot"></span> VendorHub</div>
+      <nav id="side-nav"></nav>
+      <div class="side-footer">
+        <div id="side-user" class="side-user"></div>
+        <button id="logout-btn" class="btn btn-ghost btn-block">Logout</button>
+      </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="menu-btn" class="icon-btn" aria-label="Menu">☰</button>
+        <h2 id="page-title">Dashboard</h2>
+        <div class="topbar-right">
+          <span id="plan-chip" class="chip"></span>
+        </div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <nav id="mobile-nav" class="mobile-nav" aria-label="Primary navigation"></nav>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/js/api.js?v=20260921-ui3"></script>
+  <script src="/js/ui.js?v=20260921-ui3"></script>
+  <script src="/js/views.js?v=20260921-ui3"></script>
+  <script src="/js/app.js?v=20260921-ui3"></script>
+</body>
+</html>
