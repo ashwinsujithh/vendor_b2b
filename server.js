@@ -31,8 +31,15 @@ app.use((err, req, res, next) => {
   res.status(status).json({ success: false, message: err.message || 'Internal server error' });
 });
 
-const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 3002;
-app.listen(PORT, () => {
-  console.log(`StorePanel running at http://localhost:${PORT}`);
-  console.log(`Login page: http://localhost:${PORT}/`);
-});
+// When deployed to Vercel, the app is imported as a serverless function and
+// must NOT bind a port — the platform handles that. Only listen when started
+// directly (npm start / node server.js).
+if (require.main === module) {
+  const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 3002;
+  app.listen(PORT, () => {
+    console.log(`StorePanel running at http://localhost:${PORT}`);
+    console.log(`Login page: http://localhost:${PORT}/`);
+  });
+}
+
+module.exports = app;

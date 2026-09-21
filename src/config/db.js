@@ -7,6 +7,9 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'storepanel',
   connectionLimit: 10,
+  // Managed MySQL hosts (PlanetScale, Aiven, Railway, etc.) usually require
+  // TLS. Set DB_SSL=1 in your host's dashboard to enable it.
+  ssl: process.env.DB_SSL ? { rejectUnauthorized: true } : undefined,
   // Return DATE/DATETIME as strings ('YYYY-MM-DD') so date comparisons
   // against todayStr() work predictably.
   dateStrings: true,

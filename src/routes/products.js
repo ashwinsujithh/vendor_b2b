@@ -9,11 +9,21 @@ const { HttpError, wrap } = require('../utils/http');
 const { matchCategory, titleCase } = require('../utils/category-match');
 
 // --- product image uploads (files on disk, path in the database) ---
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'public', 'uploads', 'products');
+// Serverless hosts (Vercel) mount an ephemeral, read-only-only-app bundle:
+// only /tmp is writable. Use /tmp there; keep public/uploads locally so files
+// are served by express.static as before.
+const UPLOAD_DIR = process.env.VERCEL
+  ? '/tmp/uploads/products'
+  : path.join(__dirname, '..', '..', 'public', 'uploads', 'products');
 const MAX_IMAGES = 5;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+try {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch {
+  // Ignore: on read-only filesystems the dir may already exist (or uploads
+  // will fail with a clear 500 at request time).
+}
 
 const upload = multer({
   storage: multer.diskStorage({
