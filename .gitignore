@@ -3,3 +3,4 @@ node_modules/
 *.log
 public/uploads/products/
 *.pem
+!aiven-ca.pem
