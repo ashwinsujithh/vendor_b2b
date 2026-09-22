@@ -312,13 +312,13 @@ CREATE TABLE IF NOT EXISTS client_verification (
 -- Seed data: subscription plans & categories
 -- ============================================================
 
-INSERT INTO subscription (plan, number_of_clients, number_of_products, price, validity_days) VALUES
+INSERT IGNORE INTO subscription (plan, number_of_clients, number_of_products, price, validity_days) VALUES
 ('Silver',      5,    10,   499.00,  30),
 ('Gold',        20,   50,   999.00,  30),
 ('Premium',     100,  200,  1999.00, 60),
 ('Enterprise',  1000, 1000, 4999.00, 90);
 
-INSERT INTO category (category) VALUES
+INSERT IGNORE INTO category (category) VALUES
 ('Electronics'),
 ('Groceries & Food'),
 ('Fashion'),
