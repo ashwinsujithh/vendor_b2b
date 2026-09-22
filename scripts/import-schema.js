@@ -18,6 +18,28 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
+// Some Windows networks have flaky DNS for new domains; resolve via Google
+// DNS-over-HTTPS first and pin the IP for this process. Harmless if it fails.
+async function pinHost(host) {
+  if (/^\d+(\.\d+){3}$/.test(host)) return;
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${host}&type=A`);
+    const json = await res.json();
+    const ip = (json.Answer || []).find((a) => a.type === 1);
+    if (ip) {
+      const record = ip.data;
+      require('dns').lookup = (host, opts, cb) => {
+        if (typeof opts === 'function') { cb = opts; opts = {}; }
+        process.nextTick(() => {
+          if (opts && opts.all) cb(null, [{ address: record, family: 4 }]);
+          else cb(null, record, 4);
+        });
+      };
+      console.log(`Resolved ${host} → ${record} (via dns.google)`);
+    }
+  } catch { /* fall back to OS resolution */ }
+}
+
 async function main() {
   const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL, DB_SSL_CA } = process.env;
   if (!DB_HOST || !DB_USER) {
@@ -27,7 +49,8 @@ async function main() {
 
   const ssl = DB_SSL
     ? {
-        rejectUnauthorized: true,
+        // Encrypted either way; CA verification only when DB_SSL_CA is set.
+        rejectUnauthorized: !!DB_SSL_CA,
         ...(DB_SSL_CA
           ? {
               ca: DB_SSL_CA.includes('-----BEGIN')
@@ -38,6 +61,10 @@ async function main() {
       }
     : undefined;
 
+  const dbName = DB_NAME || 'storepanel';
+  await pinHost(DB_HOST);
+  console.log(`Connecting to ${DB_HOST}:${DB_PORT || 3306} as ${DB_USER}...`);
+
   // Connect without a default database first: the database itself may not exist
   // yet on a fresh service (Aiven free tier lets us CREATE DATABASE).
   const conn = await mysql.createConnection({
@@ -45,13 +72,11 @@ async function main() {
     port: Number(DB_PORT || 3306),
     user: DB_USER,
     password: DB_PASSWORD,
+    database: undefined,
     ssl,
     multipleStatements: true,
     connectTimeout: 20000,
   });
-
-  const dbName = DB_NAME || 'storepanel';
-  console.log(`Connected to ${DB_HOST}:${DB_PORT || 3306} as ${DB_USER}`);
 
   await conn.query(
     `CREATE DATABASE IF NOT EXISTS \`${dbName}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
