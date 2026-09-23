@@ -12,6 +12,8 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ quiet: true });
+require('../src/config/dns-fix'); // resolve DB_HOST via DoH when the OS resolver is flaky
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
@@ -21,13 +23,36 @@ const TEST_DB = 'storepanel_e2e';
 const ROOT = path.join(__dirname, '..');
 
 function dbConfig(extra = {}) {
+  // Mirror src/config/db.js TLS + session-timezone behaviour so direct
+  // connections work against hosts that require SSL (e.g. Aiven) and keep
+  // SQL NOW()/CURDATE() in step with this process's clock (same convention
+  // as the app pool — OTP expiry etc. compare DB time against JS time).
+  let ssl;
+  if (process.env.DB_SSL) {
+    const caPath = process.env.DB_SSL_CA;
+    const ca = caPath && fs.existsSync(path.join(ROOT, caPath)) ? fs.readFileSync(path.join(ROOT, caPath), 'utf8') : caPath && fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : undefined;
+    ssl = { ssl: { rejectUnauthorized: Boolean(ca), ...(ca ? { ca } : {}) } };
+  }
+  const offMin = -new Date().getTimezoneOffset();
+  const pad = (n) => String(Math.abs(n)).padStart(2, '0');
+  const sessionTz = `${offMin >= 0 ? '+' : '-'}${pad(Math.floor(Math.abs(offMin) / 60))}:${pad(Math.abs(offMin) % 60)}`;
   return {
+    timezone: sessionTz,
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT || 3306),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
+    ...ssl,
     ...extra,
   };
+}
+
+/** Direct connection with the session clock aligned to this process (mirrors
+ *  the app pool's `pool.on('connection')` fix in src/config/db.js). */
+async function openDb(extra = {}) {
+  const conn = await mysql.createConnection(dbConfig(extra));
+  await conn.query(`SET time_zone = '${conn.config.timezone}'`);
+  return conn;
 }
 
 function runNode(script, env) {
@@ -58,7 +83,7 @@ async function waitForHealth(timeoutMs = 15000) {
 }
 
 async function provisionTestDb() {
-  const conn = await mysql.createConnection(dbConfig({ multipleStatements: true }));
+  const conn = await openDb({ multipleStatements: true });
   await conn.query(`DROP DATABASE IF EXISTS \`${TEST_DB}\``);
   await conn.query(`CREATE DATABASE \`${TEST_DB}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   await conn.query(`USE \`${TEST_DB}\``);
@@ -73,7 +98,7 @@ async function provisionTestDb() {
 }
 
 async function dropTestDb() {
-  const conn = await mysql.createConnection(dbConfig());
+  const conn = await openDb();
   await conn.query(`DROP DATABASE IF EXISTS \`${TEST_DB}\``);
   await conn.end();
 }
@@ -166,7 +191,7 @@ async function runChecks() {
   let cust = userLogin.body.data.token;
 
   // Admin toggle simulation: status = 0 blocks login entirely.
-  const db = await mysql.createConnection(dbConfig({ database: TEST_DB }));
+  const db = await openDb({ database: TEST_DB });
   const [[meeraRow]] = await db.query("SELECT user_id, is_active FROM user WHERE email = 'meera.krishnan@gmail.com'");
   check('user.is_active is boolean (1/0)', [0, 1].includes(Number(meeraRow.is_active)));
   await db.query('UPDATE user SET is_active = 0 WHERE user_id = ?', [meeraRow.user_id]);
@@ -212,7 +237,7 @@ async function runChecks() {
   check('vendor adds client address after verify', clientAddr.status === 201 && clientAddr.body.data.address.city === 'Chennai');
 
   // Give the verified client a known password so it can sign in as the second buyer.
-  const db2 = await mysql.createConnection(dbConfig({ database: TEST_DB }));
+  const db2 = await openDb({ database: TEST_DB });
   await db2.query('UPDATE user SET password_hash = ? WHERE user_id = ?', [await bcrypt.hash('secret1', 10), clientId]);
   await db2.end();
   const buyerLogin = await call(null, 'POST', '/api/auth/login', { email: newPhone, password: 'secret1' });
@@ -459,29 +484,33 @@ async function runChecks() {
   }
   const goneMine = (await call(vendor, 'GET', '/api/products/mine')).body.data.find((x) => x.product_id === richId);
   check('probe products deleted (images/specs cascade)', !goneMine);
-  console.log('--- subscription purchase promotes to vendor ---');
+  console.log('--- subscription: contact-to-activate (no self-purchase) ---');
   const plans = await call(buyer, 'GET', '/api/subscriptions');
-  check('plans listed', plans.status === 200 && plans.body.data.length === 4);
+  check('plans listed', plans.status === 200 && plans.body.data.length === 5);
 
-  const silver = plans.body.data.find((p) => p.plan === 'Silver');
-  const buy = await call(buyer, 'POST', '/api/subscriptions/purchase', { subscription_id: silver.subscription_id });
-  check('purchase makes user vendor', buy.status === 200 && buy.body.data.is_vendor === true && buy.body.data.plan === 'Silver');
-  {
-    const from = String(buy.body.data.sub_valid_from || '').slice(0, 10);
-    const to = String(buy.body.data.sub_valid_to || '').slice(0, 10);
-    const [fy, fm, fd] = from.split('-').map(Number);
-    const last = new Date(fm === 12 ? fy + 1 : fy, fm, 0).getDate();
-    const expectTo = `${fm === 12 ? fy + 1 : fy}-${String(fm + 1).padStart(2, '0')}-${String(Math.min(fd, last)).padStart(2, '0')}`;
-    const d0 = new Date();
-    const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`;
-    check('purchase starts today (subscribed day)', from === today);
-    check('30-day plan runs subscribed day → same day next month', from === today && to === expectTo);
-  }
+  const base = plans.body.data.find((p) => p.plan === 'Base');
+  const buy = await call(buyer, 'POST', '/api/subscriptions/purchase', { subscription_id: base.subscription_id });
+  check('self-purchase rejected (403, contact number in message)', buy.status === 403 && /9447263743/.test(buy.body.message || ''));
+
+  // Manual admin activation — the same UPDATE an admin runs in the database.
+  const me = await call(buyer, 'GET', '/api/auth/me');
+  check('profile exposes email for admin lookup', me.status === 200 && !!me.body.data.email);
+  const adminDb = await openDb({ database: TEST_DB });
+  const [adminUpd] = await adminDb.query(
+    `UPDATE user u JOIN subscription s ON s.plan = 'Base'
+     SET u.subscription_id = s.subscription_id, u.sub_valid_from = CURDATE(), u.sub_valid_to = DATE_ADD(CURDATE(), INTERVAL 1 MONTH)
+     WHERE u.email = ?`,
+    [me.body.data.email]
+  );
+  check('admin activation matched the buyer row', adminUpd.affectedRows === 1);
+  await adminDb.end();
+  const activated = await call(buyer, 'GET', '/api/auth/me');
+  check('activation makes user vendor on Base', activated.status === 200 && activated.body.data.is_vendor === true && activated.body.data.plan === 'Base');
 
   const nowVendor = await call(buyer, 'GET', '/api/products/mine');
   check('new vendor can access vendor endpoints', nowVendor.status === 200);
 
-  // Silver limit is 10 products — new vendor has 0 → fill to limit then expect 403
+  // Base limit is 10 products — new vendor has 0 → fill to limit then expect 403
   let buyerLimitHit = false;
   for (let i = 0; i < 12; i++) {
     const r = await call(buyer, 'POST', '/api/products', {
@@ -489,7 +518,7 @@ async function runChecks() {
     });
     if (r.status === 403 && /limit/i.test(r.body.message || '')) { buyerLimitHit = true; break; }
   }
-  check('new vendor blocked at Silver product limit (10)', buyerLimitHit);
+  check('new vendor blocked at Base product limit (10)', buyerLimitHit);
 
   const dash = await call(buyer, 'GET', '/api/dashboard');
   check('dashboard shows vendor stats', dash.status === 200 && dash.body.data.product_count === 10 && dash.body.data.is_vendor === true);

@@ -62,6 +62,26 @@ https://<your-app>.vercel.app/api/health
 Plus one real request that touches the DB (e.g. a login) — health doesn't
 prove the database is reachable.
 
+## 1b. Activating a subscription manually (no admin dashboard yet)
+
+Self-purchase is disabled. A user picks a plan on the Plans page and contacts
+**+91 9447263743**. To activate their account, run this against the production
+MySQL (Aiven console → service → *Query editor*, or any MySQL client) — replace
+the email and plan name:
+
+```sql
+UPDATE user u
+JOIN subscription s ON s.plan = 'Gold'          -- Base / Gold / Business / Professional / Enterprise
+SET u.subscription_id = s.subscription_id,
+    u.sub_valid_from  = CURDATE(),
+    u.sub_valid_to    = DATE_ADD(CURDATE(), INTERVAL s.validity_days DAY)
+WHERE u.email = 'the.user@email.com';
+```
+
+The user sees the change after refreshing the page (or on next login). To
+revoke, `UPDATE user SET subscription_id = NULL, sub_valid_from = NULL,
+sub_valid_to = NULL WHERE email = '...'`.
+
 ## 2. Deploy
 
 Push to `main` (or import the repo at vercel.com/new). Vercel auto-detects the

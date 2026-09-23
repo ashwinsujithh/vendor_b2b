@@ -10,6 +10,7 @@ USE storepanel;
 CREATE TABLE IF NOT EXISTS subscription (
     subscription_id INT AUTO_INCREMENT PRIMARY KEY,
     plan VARCHAR(100) NOT NULL,
+    best_for VARCHAR(100) NULL,
     number_of_clients INT DEFAULT 0,
     number_of_products INT DEFAULT 0,
     price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -312,11 +313,12 @@ CREATE TABLE IF NOT EXISTS client_verification (
 -- Seed data: subscription plans & categories
 -- ============================================================
 
-INSERT IGNORE INTO subscription (plan, number_of_clients, number_of_products, price, validity_days) VALUES
-('Silver',      5,    10,   499.00,  30),
-('Gold',        20,   50,   999.00,  30),
-('Premium',     100,  200,  1999.00, 60),
-('Enterprise',  1000, 1000, 4999.00, 90);
+INSERT IGNORE INTO subscription (plan, best_for, number_of_clients, number_of_products, price, validity_days) VALUES
+('Base',         'Small/new vendors',         5,    10,    999.00,  30),
+('Gold',         'Growing businesses',        15,   25,    10999.00, 365),
+('Business',     'Established businesses',    40,   60,    19999.00, 365),
+('Professional', 'Large businesses',          100,  150,   34999.00, 365),
+('Enterprise',   'High-volume businesses',    300,  500,   59999.00, 365);
 
 INSERT IGNORE INTO category (category) VALUES
 ('Electronics'),

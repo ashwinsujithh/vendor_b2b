@@ -99,11 +99,11 @@ async function main() {
   }
 
   // --- third vendor (their products stay hidden from clients not linked to them) ---
-  const [silverRows] = await pool.query("SELECT subscription_id FROM subscription WHERE plan = 'Silver'");
+  const [baseRows] = await pool.query("SELECT subscription_id FROM subscription WHERE plan = 'Base'");
   const [tnRes] = await pool.query(
     `INSERT INTO user (name, reg_phone, alt_phone, email, password_hash, is_active, subscription_id, sub_valid_from, sub_valid_to)
      VALUES ('TechNest Electronics', '9876500012', NULL, 'technest.store@gmail.com', ?, 1, ?, ?, ?)`,
-    [passwordHash, silverRows[0].subscription_id, days(-5), days(60)]
+    [passwordHash, baseRows[0].subscription_id, days(-5), days(60)]
   );
   const [tnProduct] = await pool.query(
     `INSERT INTO product (vendor_id, category_id, product, description, quantity, selling_price, date, stock_quantity, created_by)

@@ -184,7 +184,7 @@ async function route() {
   const key = currentRouteKey();
   const r = routes[key];
   if (r.vendorOnly && !USER.is_vendor) {
-    toast('Buy a subscription plan to unlock vendor tools.', true);
+    toast('Contact +91 94472 63743 to activate a plan and unlock vendor tools.', true);
     location.hash = '#/plans';
     return;
   }
@@ -341,7 +341,7 @@ async function viewProfile(view) {
       <div class="card">
         <h3>Subscription</h3>
         <p class="muted">No active plan — you are a normal customer.</p>
-        <p class="muted" style="margin-top:6px">Purchasing any plan instantly makes you a vendor with product &amp; client limits.</p>
+        <p class="muted" style="margin-top:6px">Plans are activated manually by our team after you contact us.</p>
         <a class="btn btn-primary btn-sm mt" href="#/plans">See plans</a>
       </div>`;
   }
@@ -557,39 +557,25 @@ async function viewVendorClients(view) {
 async function viewPlans(view) {
   const plans = await API.get('/api/subscriptions');
   const currentPlan = plans.find((plan) => USER.subscription_id === plan.subscription_id && USER.is_vendor);
-  view.innerHTML = `<section class="subscription-mobile"><header><a href="#/profile">‹</a><h3>Subscription Plans</h3></header>${currentPlan ? `<article class="active-plan"><small>CURRENT ACTIVE PLAN</small><span>Expires ${fmtDate(USER.sub_valid_to)}</span><h3>${esc(currentPlan.plan)}</h3><p>• Max Clients: ${currentPlan.number_of_clients} &nbsp; • Max Products: ${currentPlan.number_of_products}</p></article>` : `<article class="active-plan"><small>CURRENT ACTIVE PLAN</small><h3>Free Customer</h3><p>Choose a plan to unlock vendor tools.</p></article>`}<h4>Upgrade or Renew Options</h4><div class="subscription-options">
+  view.innerHTML = `<section class="subscription-mobile"><header><a href="#/profile">‹</a><h3>Subscription Plans</h3></header>${currentPlan ? `<article class="active-plan"><small>CURRENT ACTIVE PLAN</small><span>Expires ${fmtDate(USER.sub_valid_to)}</span><h3>${esc(currentPlan.plan)}</h3><p>• Max Clients: ${currentPlan.number_of_clients} &nbsp; • Max Products: ${currentPlan.number_of_products}</p></article>` : `<article class="active-plan"><small>CURRENT ACTIVE PLAN</small><h3>Free Customer</h3><p>Contact +91 94472 63743 to activate a plan and unlock vendor tools.</p></article>`}<h4>Upgrade or Renew Options</h4><div class="contact-cta">📞 Contact <a href="tel:+919447263743">+91 94472 63743</a> to activate any plan — our team will enable it on your account after confirmation.</div><div class="subscription-options">
       ${plans
         .map((p) => {
           const current = USER.subscription_id === p.subscription_id && USER.is_vendor;
-          return `<div class="plan-card ${current ? 'current' : ''}"><div class="plan-line"><b>${esc(p.plan)}</b><strong>${money(p.price)} / mo</strong></div>
+          const per = p.validity_days === 30 ? '/ mo' : p.validity_days === 365 ? '/ yr' : `/ ${p.validity_days} days`;
+          return `<div class="plan-card ${current ? 'current' : ''}"><div class="plan-line"><b>${esc(p.plan)}</b><strong>${money(p.price)} ${per}</strong></div>
+            ${p.best_for ? `<div class="plan-best">Best for: ${esc(p.best_for)}</div>` : ''}
             <ul>
               <li>${p.number_of_products} products</li>
               <li>${p.number_of_clients} clients</li>
-              <li>${p.validity_days} days validity</li>
+              <li>${p.validity_days === 30 ? 'Monthly billing' : p.validity_days === 365 ? 'Yearly billing' : p.validity_days + ' days validity'}</li>
             </ul>
-            <button class="btn ${current ? 'btn-outline' : 'btn-primary'} btn-block" data-buy="${p.subscription_id}">
-              ${current ? 'Renew / extend' : USER.is_vendor ? 'Switch to ' + esc(p.plan) : 'Buy & become vendor'}
-            </button>
+            <a class="btn ${current ? 'btn-outline' : 'btn-primary'} btn-block" href="tel:+919447263743">
+              📞 ${current ? 'Call to renew / extend' : 'Call to activate'}
+            </a>
           </div>`;
         })
         .join('')}
-    </div></div></section>`;
-
-  view.querySelectorAll('[data-buy]').forEach((btn) => {
-    btn.onclick = async () => {
-      const plan = plans.find((p) => p.subscription_id === Number(btn.dataset.buy));
-      if (!confirmDialog(`Purchase the ${plan.plan} plan for ${money(plan.price)}?`)) return;
-      try {
-        USER = await API.post('/api/subscriptions/purchase', { subscription_id: plan.subscription_id });
-        renderSidebar();
-        updatePlanChip();
-        toast(`🎉 You are now a vendor on the ${plan.plan} plan!`);
-        location.hash = '#/vendor/products';
-      } catch (err) {
-        toast(err.message, true);
-      }
-    };
-  });
+    </div></section>`;
 }
 
 /* ---------------- boot ---------------- */
